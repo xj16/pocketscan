@@ -1,0 +1,64 @@
+# XcodeGen spec — generates PocketScan.xcodeproj from source on CI (and locally
+# via `xcodegen generate`). Keeping the project as YAML avoids committing the
+# noisy, merge-hostile .xcodeproj while still giving a real, buildable target.
+name: PocketScan
+options:
+  bundleIdPrefix: dev.xj16.pocketscan
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: NO
+    SWIFT_OBJC_BRIDGING_HEADER: PocketScan/PocketScan-Bridging-Header.h
+    CLANG_ENABLE_MODULES: YES
+
+targets:
+  PocketScan:
+    type: application
+    platform: iOS
+    sources:
+      - path: PocketScan/Sources
+      - path: PocketScan/Interop
+      - path: PocketScan/PocketScan-Bridging-Header.h
+    info:
+      path: PocketScan/Info.plist
+      properties:
+        CFBundleDisplayName: PocketScan
+        UILaunchScreen: {}
+        NSCameraUsageDescription: >-
+          PocketScan uses the camera to scan receipts. All processing happens
+          on-device; nothing is uploaded.
+        NSPhotoLibraryUsageDescription: >-
+          PocketScan imports receipt photos from your library. Images stay on
+          your device.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.xj16.pocketscan
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  PocketScanTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PocketScanTests
+    dependencies:
+      - target: PocketScan
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.xj16.pocketscan.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  PocketScan:
+    build:
+      targets:
+        PocketScan: all
+        PocketScanTests: [test]
+    test:
+      targets:
+        - PocketScanTests

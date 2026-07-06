@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">PocketScan</string>
+
+    <!-- Home -->
+    <string name="home_title">Receipts</string>
+    <string name="home_empty">No receipts yet.\nTap the camera to scan one.</string>
+    <string name="home_total_format">%1$s across %2$d receipts</string>
+    <string name="action_scan">Scan receipt</string>
+    <string name="action_import">Import from gallery</string>
+
+    <!-- Scanner -->
+    <string name="scanner_title">Scan document</string>
+    <string name="scanner_hint">Align the receipt within the frame</string>
+    <string name="scanner_capture">Capture</string>
+    <string name="scanner_processing">Detecting edges…</string>
+    <string name="scanner_ocr">Reading text…</string>
+    <string name="scanner_no_edges">Couldn\'t find document edges — using full frame</string>
+
+    <!-- Permission -->
+    <string name="perm_camera_rationale">PocketScan needs the camera to scan documents. Nothing leaves your device.</string>
+    <string name="perm_grant">Grant camera access</string>
+
+    <!-- Review / detail -->
+    <string name="review_title">Review receipt</string>
+    <string name="field_merchant">Merchant</string>
+    <string name="field_date">Date</string>
+    <string name="field_total">Total</string>
+    <string name="field_currency">Currency</string>
+    <string name="action_save">Save to ledger</string>
+    <string name="action_delete">Delete</string>
+    <string name="detail_raw_text">Recognized text</string>
+
+    <!-- Common -->
+    <string name="cd_back">Back</string>
+    <string name="cd_thumbnail">Receipt thumbnail</string>
+</resources>

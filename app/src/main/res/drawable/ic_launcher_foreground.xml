@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground: a stylized receipt on the 108dp canvas.
+     Artwork lives inside the inner 72dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Receipt body with a torn bottom edge -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,30 h32 a2,2 0 0 1 2,2 v40
+            l-4,3 l-4,-3 l-4,3 l-4,-3 l-4,3 l-4,-3 l-4,3 l-4,-3 l-4,3
+            v-40 a2,2 0 0 1 2,-2 z" />
+
+    <!-- Text lines -->
+    <path android:fillColor="#2E6C5B" android:pathData="M43,40 h22 v3 h-22 z" />
+    <path android:fillColor="#8FB3A8" android:pathData="M43,48 h22 v2.5 h-22 z" />
+    <path android:fillColor="#8FB3A8" android:pathData="M43,55 h16 v2.5 h-16 z" />
+    <path android:fillColor="#2E6C5B" android:pathData="M43,63 h22 v3 h-22 z" />
+
+    <!-- Corner scan brackets -->
+    <path android:fillColor="#FFFFFF" android:pathData="M30,26 h9 v3 h-6 v6 h-3 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M78,26 h-9 v3 h6 v6 h3 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M30,82 h9 v-3 h-6 v-6 h-3 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M78,82 h-9 v-3 h6 v-6 h3 z" />
+</vector>

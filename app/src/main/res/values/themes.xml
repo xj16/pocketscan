@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. The Compose UI supplies the real Material 3
+         color scheme at runtime; this XML theme only styles the splash /
+         window background before Compose takes over. -->
+    <style name="Theme.PocketScan" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/ps_primary</item>
+        <item name="android:windowBackground">@color/ps_background</item>
+    </style>
+</resources>

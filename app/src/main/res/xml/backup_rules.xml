@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Include the Room database in cloud backups but exclude cached scan images. -->
+<full-backup-content>
+    <include domain="database" path="pocketscan.db" />
+    <exclude domain="file" path="scans/" />
+</full-backup-content>

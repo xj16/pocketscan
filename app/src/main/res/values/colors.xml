@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ps_primary">#2E6C5B</color>
+    <color name="ps_primary_dark">#1F4A3E</color>
+    <color name="ps_background">#F7F9F8</color>
+    <color name="ic_launcher_background">#2E6C5B</color>
+</resources>

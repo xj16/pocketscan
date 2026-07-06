@@ -80,12 +80,11 @@ jobs:
       - name: Pick an available iOS simulator
         id: sim
         run: |
-          # Choose any booted-capable iPhone simulator the runner actually has,
-          # rather than hard-coding a device/OS that may not exist.
-          UDID=$(xcrun simctl list devices available -j \
-            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; \
-import itertools; devs=[x for v in d.values() for x in v if 'iPhone' in x['name']]; \
-print(devs[0]['udid'] if devs else '')")
+          # Grab the UDID of the first available iPhone simulator using pure
+          # shell (jq ships on the runner) so we never hard-code a device/OS
+          # that might be absent.
+          UDID=$(xcrun simctl list devices available --json \
+            | jq -r '[.devices[][] | select(.name | test("iPhone"))][0].udid')
           echo "Using simulator UDID: $UDID"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
@@ -93,10 +92,9 @@ print(devs[0]['udid'] if devs else '')")
         working-directory: ios
         run: |
           set -o pipefail
-          DEST="platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}"
           xcodebuild \
             -project PocketScan.xcodeproj \
             -scheme PocketScan \
-            -destination "$DEST" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             clean build test \
             CODE_SIGNING_ALLOWED=NO

@@ -63,22 +63,48 @@ enum ReceiptParser {
 
     static func guessDate(_ lines: [String]) -> Date? {
         let text = lines.joined(separator: "\n")
-        let patterns: [(regex: String, format: String)] = [
-            ("\\b(\\d{4})[-/.](\\d{1,2})[-/.](\\d{1,2})\\b", "yyyy-M-d"),
-            ("\\b(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})\\b", "d-M-yyyy"),
-            ("\\b(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{2})\\b", "d-M-yy"),
-        ]
-        for (regex, format) in patterns {
-            guard let match = firstMatch(regex, in: text) else { continue }
-            let normalized = match.replacingOccurrences(
-                of: "[/.]", with: "-", options: .regularExpression)
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = TimeZone(identifier: "UTC")
-            formatter.dateFormat = format
-            if let date = formatter.date(from: normalized) { return date }
+
+        // ISO first: 2026-03-14 (unambiguous year-month-day).
+        if let iso = firstMatch("\\b(\\d{4})[-/.](\\d{1,2})[-/.](\\d{1,2})\\b", in: text) {
+            let f = numbers(in: iso)
+            if f.count == 3, let d = buildDate(year: f[0], month: f[1], day: f[2]) {
+                return d
+            }
+        }
+
+        // Day/month/year OR month/day/year, disambiguated by field validity so
+        // US (03/14/2026 = MDY) and EU/TR (14.03.2026 = DMY) both work.
+        if let triple = firstMatch("\\b(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{2,4})\\b", in: text) {
+            let f = numbers(in: triple)
+            guard f.count == 3 else { return nil }
+            let year = f[2] < 100 ? 2000 + f[2] : f[2]
+            let a = f[0], b = f[1]
+            if b <= 12 {
+                return buildDate(year: year, month: b, day: a)
+                    ?? buildDate(year: year, month: a, day: b)
+            } else {
+                return buildDate(year: year, month: a, day: b)
+                    ?? buildDate(year: year, month: b, day: a)
+            }
         }
         return nil
+    }
+
+    private static func numbers(in text: String) -> [Int] {
+        allMatches("\\d+", in: text).compactMap { Int($0) }
+    }
+
+    private static func buildDate(year: Int, month: Int, day: Int) -> Date? {
+        guard (1...12).contains(month), (1...31).contains(day) else { return nil }
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        // Calendar rejects impossible dates (e.g. Feb 30) via isValidDate.
+        guard comps.isValidDate(in: cal) else { return nil }
+        return cal.date(from: comps)
     }
 
     // MARK: - Total

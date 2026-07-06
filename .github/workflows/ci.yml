@@ -60,7 +60,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          # Some runner images carry an untrusted third-party tap (e.g. aws/tap)
+          # that makes `brew install` abort with a tap-trust error. Drop it if
+          # present, then install XcodeGen from the core formulae.
+          brew untap aws/tap 2>/dev/null || true
+          brew install xcodegen
 
       - name: Generate Xcode project
         working-directory: ios

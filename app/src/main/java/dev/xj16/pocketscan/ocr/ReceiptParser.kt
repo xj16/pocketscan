@@ -1,7 +1,6 @@
 package dev.xj16.pocketscan.ocr
 
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import kotlin.math.roundToLong
 
 /**
@@ -83,25 +82,42 @@ object ReceiptParser {
 
     // --- date ----------------------------------------------------------------
 
-    private val DATE_PATTERNS: List<Pair<Regex, DateTimeFormatter>> = listOf(
-        Regex("""\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b""") to
-            DateTimeFormatter.ofPattern("yyyy-M-d"),
-        Regex("""\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})\b""") to
-            DateTimeFormatter.ofPattern("d-M-yyyy"),
-        Regex("""\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})\b""") to
-            DateTimeFormatter.ofPattern("d-M-yy"),
-    )
+    // ISO first: 2026-03-14 (unambiguous year-month-day).
+    private val ISO_DATE = Regex("""\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b""")
+
+    // Then a day/month/year OR month/day/year triple ending in a 2- or 4-digit
+    // year. Order (a,b) is disambiguated at parse time by field validity, so
+    // both US (03/14/2026 = MDY) and EU/TR (14.03.2026 = DMY) receipts work.
+    private val DMY_OR_MDY = Regex("""\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b""")
 
     internal fun guessDate(lines: List<String>): LocalDate? {
         val text = lines.joinToString("\n")
-        for ((pattern, formatter) in DATE_PATTERNS) {
-            val m = pattern.find(text) ?: continue
-            val normalized = m.value.replace(Regex("[/.]"), "-")
-            return runCatching { LocalDate.parse(normalized, formatter) }.getOrNull()
-                ?: continue
+
+        ISO_DATE.find(text)?.let { m ->
+            val (y, mo, d) = m.destructured
+            buildDate(y.toInt(), mo.toInt(), d.toInt())?.let { return it }
+        }
+
+        DMY_OR_MDY.find(text)?.let { m ->
+            val (a, b, yRaw) = m.destructured
+            val year = normalizeYear(yRaw.toInt())
+            val x = a.toInt()
+            val y = b.toInt()
+            // If the first field can't be a day/month, let the other reading win.
+            // Prefer DMY (a=day, b=month); fall back to MDY (a=month, b=day).
+            return if (y <= 12) {
+                buildDate(year, y, x) ?: buildDate(year, x, y)
+            } else {
+                buildDate(year, x, y) ?: buildDate(year, y, x)
+            }
         }
         return null
     }
+
+    private fun normalizeYear(y: Int): Int = if (y < 100) 2000 + y else y
+
+    private fun buildDate(year: Int, month: Int, day: Int): LocalDate? =
+        runCatching { LocalDate.of(year, month, day) }.getOrNull()
 
     // --- total ---------------------------------------------------------------
 

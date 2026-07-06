@@ -28,7 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns a grayscale, contrast-boosted copy of @c image suitable for OCR.
 /// Implemented with Core Graphics only (no third-party deps).
 + (nullable CGImageRef)preprocessedImageFromCGImage:(CGImageRef)image
-    CF_RETURNS_RETAINED;
+    CF_RETURNS_RETAINED
+    NS_SWIFT_NAME(preprocessedImage(fromCGImage:));
 
 #if TARGET_OS_IPHONE
 /// Convenience wrapper operating on a UIImage. Returns nil on failure.

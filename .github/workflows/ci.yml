@@ -55,9 +55,12 @@ jobs:
   # ---------------------------------------------------------------------------
   ios:
     name: iOS build & test
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Install XcodeGen
         run: |
@@ -69,21 +72,31 @@ jobs:
 
       - name: Generate Xcode project
         working-directory: ios
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          # Fail fast with a clear message if the project can't be parsed.
+          xcodebuild -list -project PocketScan.xcodeproj
 
-      - name: Build & test (iPhone simulator)
+      - name: Pick an available iOS simulator
+        id: sim
+        run: |
+          # Choose any booted-capable iPhone simulator the runner actually has,
+          # rather than hard-coding a device/OS that may not exist.
+          UDID=$(xcrun simctl list devices available -j \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; \
+import itertools; devs=[x for v in d.values() for x in v if 'iPhone' in x['name']]; \
+print(devs[0]['udid'] if devs else '')")
+          echo "Using simulator UDID: $UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build & test
         working-directory: ios
         run: |
           set -o pipefail
+          DEST="platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}"
           xcodebuild \
             -project PocketScan.xcodeproj \
             -scheme PocketScan \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
-            clean build test \
-            CODE_SIGNING_ALLOWED=NO | xcpretty || \
-          xcodebuild \
-            -project PocketScan.xcodeproj \
-            -scheme PocketScan \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination "$DEST" \
             clean build test \
             CODE_SIGNING_ALLOWED=NO

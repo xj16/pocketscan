@@ -48,10 +48,16 @@ class ReceiptDaoTest {
 
     @Before
     fun setUp() {
+        // Run every Room query synchronously on the calling thread so the
+        // suspend DAO calls complete deterministically under runBlocking.
         db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext<android.content.Context>(),
             LedgerDatabase::class.java,
-        ).allowMainThreadQueries().build()
+        )
+            .allowMainThreadQueries()
+            .setQueryExecutor { it.run() }
+            .setTransactionExecutor { it.run() }
+            .build()
         dao = db.receiptDao()
     }
 

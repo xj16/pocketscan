@@ -57,10 +57,12 @@ class HomeViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // USD is the dominant currency by total (1058 + 5000 = 6058), so the
+        // category chart is scoped to USD and Transport outranks Groceries there.
         val dao = FakeReceiptDao(
             listOf(
                 receipt(1, "Whole Foods", 1058, "USD", "Groceries", "milk bread"),
-                receipt(2, "BIM Market", 8980, "TRY", "Groceries", "ekmek sut"),
+                receipt(2, "BIM Market", 3000, "TRY", "Groceries", "ekmek sut"),
                 receipt(3, "Shell", 5000, "USD", "Transport", "fuel petrol"),
                 receipt(4, "Cafe de Flore", 935, "EUR", "Dining", "espresso"),
             ),
@@ -78,7 +80,7 @@ class HomeViewModelTest {
         val s = vm.state.value
         val byCode = s.currencyTotals.associate { it.currency to it.totalMinor }
         assertEquals(6058L, byCode["USD"]) // 1058 + 5000, NOT mixed with TRY/EUR
-        assertEquals(8980L, byCode["TRY"])
+        assertEquals(3000L, byCode["TRY"])
         assertEquals(935L, byCode["EUR"])
         assertEquals(3, s.currencyTotals.size)
         job.cancel()

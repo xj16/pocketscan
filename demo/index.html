@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PocketScan · Receipt Parser Playground</title>
+<meta name="description" content="Paste any receipt and watch PocketScan's on-device parser pull out merchant, date, total and currency — the exact same heuristics that run on the phone, ported to the browser. No network, no upload." />
+<style>
+  /* ---- Tokens --------------------------------------------------------- */
+  :root {
+    /* Warm receipt-paper neutrals, biased toward the detector-green accent. */
+    --paper: #f5f2eb;
+    --paper-edge: #ece7db;
+    --card: #fffdf8;
+    --ink: #26221c;
+    --ink-soft: #6b6355;
+    --ink-faint: #97907f;
+    --rule: #ded8cc;
+    --rule-soft: #ebe6da;
+
+    /* One confident accent: the green a scanner shows when it locks on. */
+    --detect: #1f9e5a;
+    --detect-tint: #e4f4ea;
+    --detect-deep: #12703f;
+
+    /* Semantic: amber = "guessed, please confirm". Not the accent. */
+    --warn: #b4791f;
+    --warn-tint: #f6ecd8;
+
+    --shadow: 0 1px 2px rgba(38, 34, 28, .06), 0 8px 24px rgba(38, 34, 28, .07);
+    --shadow-lg: 0 2px 4px rgba(38, 34, 28, .07), 0 18px 48px rgba(38, 34, 28, .12);
+
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 18px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14110e;
+      --paper-edge: #1c1813;
+      --card: #211c16;
+      --ink: #f0ebe0;
+      --ink-soft: #b3aa98;
+      --ink-faint: #837a68;
+      --rule: #362f26;
+      --rule-soft: #2a241d;
+      --detect-tint: #123120;
+      --warn-tint: #322611;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.4);
+      --shadow-lg: 0 2px 4px rgba(0,0,0,.5), 0 18px 48px rgba(0,0,0,.55);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 82% -8%, var(--detect-tint) 0%, transparent 55%),
+      var(--paper);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--detect-deep); }
+  @media (prefers-color-scheme: dark) { a { color: #58c98c; } }
+
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 22px; }
+
+  /* ---- Masthead ------------------------------------------------------- */
+  header.top {
+    padding: 26px 0 6px;
+  }
+  .brandrow {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .glyph {
+    width: 34px; height: 34px; flex: none;
+    border-radius: 9px;
+    background: var(--ink);
+    color: var(--paper);
+    display: grid; place-items: center;
+    box-shadow: var(--shadow);
+  }
+  .glyph svg { width: 20px; height: 20px; display: block; }
+  .brand {
+    font-weight: 680; font-size: 19px; letter-spacing: -.01em;
+  }
+  .brand span { color: var(--ink-faint); font-weight: 500; }
+  .offline-pill {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11.5px; letter-spacing: .02em;
+    color: var(--detect-deep);
+    background: var(--detect-tint);
+    border: 1px solid color-mix(in srgb, var(--detect) 30%, transparent);
+    padding: 5px 11px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  @media (prefers-color-scheme: dark){ .offline-pill { color:#6fd39e; } }
+  .offline-pill b { width:6px;height:6px;border-radius:50%;background:var(--detect);display:inline-block; }
+
+  /* ---- Hero ----------------------------------------------------------- */
+  .hero { padding: 30px 0 22px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5.2vw, 52px);
+    line-height: 1.04;
+    letter-spacing: -.028em;
+    margin: 0;
+    max-width: 20ch;
+    text-wrap: balance;
+    font-weight: 700;
+  }
+  h1 .hl {
+    background: linear-gradient(transparent 62%, var(--detect-tint) 62%);
+    padding: 0 .05em;
+  }
+  .lede {
+    margin: 18px 0 0;
+    font-size: clamp(15.5px, 1.7vw, 18px);
+    color: var(--ink-soft);
+    max-width: 62ch;
+  }
+  .lede code {
+    font-family: var(--mono); font-size: .92em;
+    background: var(--paper-edge); padding: 1px 6px; border-radius: 5px;
+    color: var(--ink);
+  }
+
+  /* ---- Sample switcher ------------------------------------------------ */
+  .controls {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 26px 0 14px;
+  }
+  .seg {
+    display: inline-flex; background: var(--card);
+    border: 1px solid var(--rule); border-radius: 999px; padding: 4px;
+    box-shadow: var(--shadow);
+  }
+  .seg button {
+    font-family: var(--sans); font-size: 13.5px; font-weight: 560;
+    color: var(--ink-soft);
+    background: transparent; border: 0; cursor: pointer;
+    padding: 7px 15px; border-radius: 999px;
+    transition: color .16s ease, background .16s ease;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] {
+    background: var(--ink); color: var(--paper);
+  }
+  .ctrl-note { font-size: 13px; color: var(--ink-faint); }
+  .ctrl-spacer { margin-left: auto; }
+  .ghost-btn {
+    font-family: var(--sans); font-size: 13px; font-weight: 550;
+    color: var(--ink-soft);
+    background: var(--card); border: 1px solid var(--rule);
+    padding: 8px 13px; border-radius: var(--r-sm); cursor: pointer;
+    transition: border-color .16s ease, color .16s ease;
+  }
+  .ghost-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  /* ---- Bench: two panels --------------------------------------------- */
+  .bench {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 20px;
+    margin: 6px 0 44px;
+    align-items: start;
+  }
+  @media (max-width: 860px) { .bench { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 9px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .panel-head h2 {
+    font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0; font-weight: 640;
+    font-family: var(--mono);
+  }
+  .panel-head .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--rule); flex: none;
+  }
+  .panel-head .count { margin-left: auto; font: 500 12px var(--mono); color: var(--ink-faint); }
+
+  /* receipt editor — the physical tape */
+  .receipt-scroll { position: relative; }
+  .tape-edge {
+    height: 12px;
+    background:
+      radial-gradient(circle at 6px -3px, transparent 6px, var(--card) 6px) 0 0 / 12px 12px repeat-x;
+    border-bottom: 0;
+  }
+  .editor-stack { position: relative; }
+  .editor-stack > textarea,
+  .editor-stack > .highlights {
+    margin: 0;
+    padding: 6px 18px 22px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.62;
+    letter-spacing: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 0;
+  }
+  .editor-stack > .highlights {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    color: transparent;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .editor-stack > textarea {
+    position: relative;
+    z-index: 1;
+    display: block; width: 100%;
+    min-height: 340px;
+    resize: vertical;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+    caret-color: var(--detect);
+  }
+  .editor-stack > textarea::selection { background: color-mix(in srgb, var(--detect) 24%, transparent); }
+
+  mark {
+    background: transparent; color: transparent;
+    border-radius: 4px;
+    box-decoration-break: clone; -webkit-box-decoration-break: clone;
+    transition: background-color .2s ease, box-shadow .2s ease;
+  }
+  mark.m-merchant { background: color-mix(in srgb, #4b74d6 22%, transparent); }
+  mark.m-total    { background: color-mix(in srgb, var(--detect) 26%, transparent); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--detect) 55%, transparent); }
+  mark.m-date     { background: color-mix(in srgb, #8a5cd0 22%, transparent); }
+  mark.m-currency { background: color-mix(in srgb, var(--warn) 30%, transparent); }
+  mark.flash { animation: flash .5s ease; }
+  @keyframes flash { 0%{ box-shadow: 0 0 0 3px color-mix(in srgb, var(--detect) 50%, transparent); } 100%{ box-shadow: 0 0 0 0 transparent; } }
+
+  /* extracted fields */
+  .fields { padding: 8px 8px 12px; display: flex; flex-direction: column; }
+  .field {
+    display: grid;
+    grid-template-columns: 108px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 15px 14px;
+    border-radius: var(--r-md);
+    transition: background .16s ease;
+  }
+  .field + .field { border-top: 1px solid var(--rule-soft); }
+  .field:hover { background: var(--paper-edge); }
+  .field .k {
+    font: 640 11px var(--mono);
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .field .k .swatch { width: 9px; height: 9px; border-radius: 3px; flex:none; }
+  .k-merchant .swatch { background: #4b74d6; }
+  .k-date .swatch { background: #8a5cd0; }
+  .k-total .swatch { background: var(--detect); }
+  .k-currency .swatch { background: var(--warn); }
+
+  .field .v {
+    font-family: var(--mono);
+    font-size: 19px; font-weight: 560;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+    min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .field .v.empty { color: var(--ink-faint); font-weight: 400; font-style: italic; font-size: 15px; }
+
+  .chip {
+    justify-self: end;
+    font: 600 11px var(--mono); letter-spacing: .03em;
+    padding: 4px 10px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .chip .led { width: 6px; height: 6px; border-radius: 50%; }
+  .chip.ok   { color: var(--detect-deep); background: var(--detect-tint); }
+  .chip.ok .led { background: var(--detect); }
+  .chip.miss { color: var(--warn); background: var(--warn-tint); }
+  .chip.miss .led { background: var(--warn); }
+  @media (prefers-color-scheme: dark){ .chip.ok { color:#6fd39e; } }
+
+  .total-band {
+    margin: 4px 8px 0; padding: 16px 18px;
+    background: var(--ink); color: var(--paper);
+    border-radius: var(--r-md);
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px;
+  }
+  .total-band .lbl { font: 640 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; opacity: .72; }
+  .total-band .amt { font: 620 30px var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .total-band .amt.empty { opacity: .4; font-size: 20px; }
+
+  /* legend under bench */
+  .legend {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    margin: 0 0 40px; font-size: 12.5px; color: var(--ink-soft);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 12px; height: 12px; border-radius: 4px; display:inline-block; }
+
+  /* ---- Explainer strip ------------------------------------------------ */
+  .how { border-top: 1px solid var(--rule); padding: 40px 0 8px; }
+  .how h3 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-family: var(--mono); margin: 0 0 22px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 760px){ .steps { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 420px){ .steps { grid-template-columns: 1fr; } }
+  .step { }
+  .step .no { font: 620 13px var(--mono); color: var(--detect-deep); }
+  @media (prefers-color-scheme: dark){ .step .no { color:#6fd39e; } }
+  .step h4 { margin: 8px 0 5px; font-size: 15px; letter-spacing: -.01em; }
+  .step p { margin: 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+
+  /* ---- Footer --------------------------------------------------------- */
+  footer {
+    border-top: 1px solid var(--rule);
+    margin-top: 44px; padding: 24px 0 46px;
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+    font-size: 13px; color: var(--ink-soft);
+  }
+  footer .sp { margin-left: auto; }
+  footer a { font-weight: 550; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  :focus-visible { outline: 2px solid var(--detect); outline-offset: 2px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brandrow">
+      <span class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 3v18l2-1.4 2 1.4 2-1.4 2 1.4 2-1.4 2 1.4V3l-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4L4 3z"/>
+          <path d="M8 8h8M8 12h8M8 16h5"/>
+        </svg>
+      </span>
+      <span class="brand">PocketScan <span>/ parser playground</span></span>
+      <span class="offline-pill"><b></b>runs 100% in your browser</span>
+    </div>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">On-device receipt parsing · live</p>
+    <h1>The smartest part of the scanner, <span class="hl">running in your tab.</span></h1>
+    <p class="lede">
+      PocketScan turns paper receipts into a searchable ledger without a single network call. This page runs its
+      <code>ReceiptParser</code> — the exact heuristics that ship on Android and iOS, ported line-for-line to JavaScript.
+      Edit the receipt on the left and watch merchant, date, total, and currency light up on the right. Nothing you type leaves the page.
+    </p>
+  </section>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Load a sample receipt">
+      <button data-sample="us" aria-pressed="true">US · Grocery</button>
+      <button data-sample="tr" aria-pressed="false">TR · Market</button>
+      <button data-sample="eu" aria-pressed="false">EU · Café</button>
+      <button data-sample="messy" aria-pressed="false">Messy OCR</button>
+    </div>
+    <span class="ctrl-spacer"></span>
+    <button class="ghost-btn" id="clearBtn" type="button">Clear</button>
+  </div>
+
+  <div class="bench">
+    <!-- LEFT: the receipt tape -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot" style="background:var(--detect)"></span>
+        <h2>Raw receipt text</h2>
+        <span class="count" id="lineCount">0 lines</span>
+      </div>
+      <div class="tape-edge" aria-hidden="true"></div>
+      <div class="editor-stack">
+        <div class="highlights" id="highlights" aria-hidden="true"></div>
+        <textarea id="raw" spellcheck="false" aria-label="Receipt text — edit to re-parse"></textarea>
+      </div>
+    </div>
+
+    <!-- RIGHT: extracted fields -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot" style="background:var(--detect)"></span>
+        <h2>Extracted fields</h2>
+        <span class="count" id="hitCount">0 / 4 detected</span>
+      </div>
+
+      <div class="fields">
+        <div class="field">
+          <span class="k k-merchant"><span class="swatch"></span>Merchant</span>
+          <span class="v empty" id="f-merchant">—</span>
+          <span class="chip miss" id="c-merchant"><span class="led"></span>guess</span>
+        </div>
+        <div class="field">
+          <span class="k k-date"><span class="swatch"></span>Date</span>
+          <span class="v empty" id="f-date">—</span>
+          <span class="chip miss" id="c-date"><span class="led"></span>guess</span>
+        </div>
+        <div class="field">
+          <span class="k k-currency"><span class="swatch"></span>Currency</span>
+          <span class="v empty" id="f-currency">—</span>
+          <span class="chip miss" id="c-currency"><span class="led"></span>guess</span>
+        </div>
+      </div>
+
+      <div class="total-band">
+        <span class="lbl">Grand total</span>
+        <span class="amt empty" id="f-total">—</span>
+      </div>
+      <div class="fields" style="padding-top:6px">
+        <div class="field" style="padding-top:10px">
+          <span class="k k-total"><span class="swatch"></span>Total signal</span>
+          <span class="v empty" id="f-total-note" style="font-size:13px;font-style:normal">waiting for input</span>
+          <span class="chip miss" id="c-total"><span class="led"></span>guess</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend" aria-hidden="true">
+    <span><i style="background:color-mix(in srgb,#4b74d6 45%,transparent)"></i>merchant match</span>
+    <span><i style="background:color-mix(in srgb,#8a5cd0 45%,transparent)"></i>date match</span>
+    <span><i style="background:color-mix(in srgb,var(--detect) 55%,transparent)"></i>total line</span>
+    <span><i style="background:color-mix(in srgb,var(--warn) 55%,transparent)"></i>currency token</span>
+  </div>
+
+  <section class="how">
+    <h3>How the parser thinks</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="no">01</div>
+        <h4>Rank the total</h4>
+        <p>Lines with <em>total / toplam / amount due</em> beat <em>subtotal, tax, KDV, change</em>. The largest surviving amount wins — never a tax line.</p>
+      </div>
+      <div class="step">
+        <div class="no">02</div>
+        <h4>Read either money format</h4>
+        <p><code style="font-family:var(--mono)">1,234.56</code> and <code style="font-family:var(--mono)">1.234,56</code> both parse to the same cents by treating the last separator as the decimal point.</p>
+      </div>
+      <div class="step">
+        <div class="no">03</div>
+        <h4>Disambiguate the date</h4>
+        <p>ISO wins outright; otherwise US <em>MM/DD</em> and EU/TR <em>DD.MM</em> are resolved by which reading forms a valid calendar date.</p>
+      </div>
+      <div class="step">
+        <div class="no">04</div>
+        <h4>Detect the currency</h4>
+        <p>Symbols and codes — <code style="font-family:var(--mono)">$ € £ ₺</code>, <code style="font-family:var(--mono)">USD TRY TL</code> — map to ISO-4217, Turkish keywords included.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Same code path as the mobile app — the JS port is parity-tested against the JUnit &amp; XCTest fixtures.</span>
+    <span class="sp"></span>
+    <a href="https://github.com/xj16/pocketscan">Source on GitHub ↗</a>
+  </footer>
+
+</div>
+
+<!-- The parser is the shipped, dependency-free port used on the phone. -->
+<script src="js/receipt-parser.js"></script>
+<script>
+(function () {
+  "use strict";
+  var P = window.PocketScan;
+
+  var SAMPLES = {
+    us: [
+      "WHOLE FOODS MARKET",
+      "123 Main St, Austin TX",
+      "Tel: (512) 555-0199",
+      "",
+      "Bananas           $1.29",
+      "Almond Milk       $3.49",
+      "Sourdough Loaf    $4.99",
+      "",
+      "Subtotal          $9.77",
+      "Tax               $0.81",
+      "TOTAL            $10.58",
+      "",
+      "VISA ************1234",
+      "Date: 03/14/2026",
+    ].join("\n"),
+    tr: [
+      "BIM MARKET",
+      "Kadikoy / Istanbul",
+      "",
+      "Ekmek            5,50",
+      "Sut              32,90",
+      "Yumurta 10lu     44,75",
+      "",
+      "ARA TOPLAM       83,15",
+      "KDV %8            6,65",
+      "TOPLAM           89,80 TL",
+      "",
+      "Tarih: 14.03.2026",
+    ].join("\n"),
+    eu: [
+      "CAFÉ DE FLORE",
+      "172 Bd Saint-Germain, Paris",
+      "",
+      "Espresso           2.50",
+      "Croissant          1.80",
+      "Jus d'orange       4.20",
+      "",
+      "Sous-total         8.50",
+      "TVA 10%            0.85",
+      "TOTAL              9.35 €",
+      "",
+      "Date: 14.03.2026",
+    ].join("\n"),
+    messy: [
+      "TARGET  T1932",
+      "  ***  ST0RE #0042  ***",
+      "8OO-591-3869",
+      "",
+      "Gr0cery      12,00",
+      "H0me         1.234,50",
+      "",
+      "SUBT0TAL    1.246,50",
+      "TAX            99,72",
+      "BALANCE DUE 1.346,22 USD",
+      "",
+      "01/31/26",
+    ].join("\n"),
+  };
+
+  var raw = document.getElementById("raw");
+  var highlights = document.getElementById("highlights");
+  var els = {
+    merchant: document.getElementById("f-merchant"),
+    date: document.getElementById("f-date"),
+    currency: document.getElementById("f-currency"),
+    total: document.getElementById("f-total"),
+    totalNote: document.getElementById("f-total-note"),
+  };
+  var chips = {
+    merchant: document.getElementById("c-merchant"),
+    date: document.getElementById("c-date"),
+    currency: document.getElementById("c-currency"),
+    total: document.getElementById("c-total"),
+  };
+
+  function esc(s) {
+    return s.replace(/[&<>]/g, function (c) {
+      return c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;";
+    });
+  }
+
+  // Compute the substrings the parser matched, so we can highlight the exact
+  // spans on the tape. We re-derive them from the same regexes/keywords the
+  // parser exposes — no guessing.
+  function computeSpans(text) {
+    var spans = []; // {start,end,cls}
+    var lines = text.split("\n");
+    var offset = 0;
+
+    // merchant: first "wordy" line in the first 6
+    var merchant = P.parse(text).merchant;
+
+    lines.forEach(function (line, idx) {
+      var lineStart = offset;
+      var lower = line.toLowerCase();
+
+      // merchant span (match the whole trimmed line once)
+      if (merchant && idx < 6) {
+        var mi = line.indexOf(merchant);
+        if (mi >= 0 && !spanTaken(spans, lineStart + mi)) {
+          spans.push({ start: lineStart + mi, end: lineStart + mi + merchant.length, cls: "m-merchant" });
+        }
+      }
+
+      // total line: positive keyword & no negative keyword -> mark last amount
+      var isNeg = P.NEGATIVE_KEYWORDS.some(function (k) { return lower.indexOf(k) >= 0; });
+      var isPos = P.TOTAL_KEYWORDS.some(function (k) { return lower.indexOf(k) >= 0; });
+      if (isPos && !isNeg) {
+        var amtRe = /(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+[.,]\d{2})/g, m, last = null;
+        while ((m = amtRe.exec(line)) !== null) last = m;
+        if (last) spans.push({ start: lineStart + last.index, end: lineStart + last.index + last[0].length, cls: "m-total" });
+      }
+
+      // currency token on this line
+      P.CURRENCY_TOKENS.forEach(function (t) {
+        var r = new RegExp(t.re.source, "gi"), cm;
+        while ((cm = r.exec(line)) !== null) {
+          spans.push({ start: lineStart + cm.index, end: lineStart + cm.index + cm[0].length, cls: "m-currency" });
+          break; // first per line is enough
+        }
+      });
+
+      offset += line.length + 1; // + newline
+    });
+
+    // date span (first match, whole document)
+    var iso = /\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b/.exec(text);
+    var dmy = /\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/.exec(text);
+    var dm = iso || dmy;
+    if (dm) spans.push({ start: dm.index, end: dm.index + dm[0].length, cls: "m-date" });
+
+    return spans.sort(function (a, b) { return a.start - b.start; });
+  }
+
+  function spanTaken(spans, pos) {
+    return spans.some(function (s) { return pos >= s.start && pos < s.end; });
+  }
+
+  function renderHighlights(text, spans) {
+    // Resolve overlaps by keeping earliest; build an escaped, marked string.
+    var out = "", cursor = 0;
+    spans.forEach(function (s) {
+      if (s.start < cursor) return; // skip overlaps
+      out += esc(text.slice(cursor, s.start));
+      out += '<mark class="' + s.cls + '">' + esc(text.slice(s.start, s.end)) + "</mark>";
+      cursor = s.end;
+    });
+    out += esc(text.slice(cursor));
+    // trailing newline so the highlight layer matches the textarea's height
+    highlights.innerHTML = out + "\n";
+  }
+
+  function setField(el, chip, value, display) {
+    var has = value !== null && value !== undefined && value !== "";
+    el.textContent = has ? display : "—";
+    el.classList.toggle("empty", !has);
+    chip.classList.toggle("ok", has);
+    chip.classList.toggle("miss", !has);
+    // The chip's trailing text node holds the label ("detected"/"guess").
+    chip.lastChild.textContent = has ? "detected" : "guess";
+  }
+
+  function update() {
+    var text = raw.value;
+    var parsed = P.parse(text);
+
+    // line count
+    document.getElementById("lineCount").textContent =
+      P.splitLines(text).length + " lines";
+
+    // fields
+    setField(els.merchant, chips.merchant, parsed.merchant, parsed.merchant || "");
+    setField(els.date, chips.date, parsed.date, parsed.date || "");
+    setField(els.currency, chips.currency, parsed.currency, parsed.currency || "");
+
+    // total band
+    var hasTotal = parsed.totalMinor !== null && parsed.totalMinor !== undefined;
+    var cur = parsed.currency || "USD";
+    els.total.textContent = hasTotal ? P.formatMoney(parsed.totalMinor, cur) : "—";
+    els.total.classList.toggle("empty", !hasTotal);
+    els.totalNote.textContent = hasTotal
+      ? "ranked over subtotal / tax"
+      : "waiting for input";
+    els.totalNote.classList.remove("empty");
+    chips.total.classList.toggle("ok", hasTotal);
+    chips.total.classList.toggle("miss", !hasTotal);
+    chips.total.lastChild.textContent = hasTotal ? "detected" : "guess";
+
+    // hit count
+    var hits = [parsed.merchant, parsed.date, parsed.currency, hasTotal ? 1 : null]
+      .filter(function (x) { return x !== null && x !== undefined && x !== ""; }).length;
+    document.getElementById("hitCount").textContent = hits + " / 4 detected";
+
+    // highlight tape
+    renderHighlights(text, computeSpans(text));
+  }
+
+  // keep highlight overlay scroll-synced with the textarea
+  raw.addEventListener("scroll", function () {
+    highlights.scrollTop = raw.scrollTop;
+    highlights.scrollLeft = raw.scrollLeft;
+  });
+  raw.addEventListener("input", update);
+
+  function loadSample(key) {
+    raw.value = SAMPLES[key] || "";
+    update();
+    // flash the total highlight as the money-shot
+    requestAnimationFrame(function () {
+      var t = highlights.querySelector("mark.m-total");
+      if (t) { t.classList.add("flash"); setTimeout(function(){ t.classList.remove("flash"); }, 500); }
+    });
+  }
+
+  document.querySelectorAll(".seg button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".seg button").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      loadSample(btn.dataset.sample);
+    });
+  });
+  document.getElementById("clearBtn").addEventListener("click", function () {
+    document.querySelectorAll(".seg button").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+    raw.value = "";
+    raw.focus();
+    update();
+  });
+
+  // boot
+  loadSample("us");
+})();
+</script>
+</body>
+</html>

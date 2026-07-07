@@ -1,0 +1,12 @@
+{
+  "name": "pocketscan-demo",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Static, dependency-free in-browser playground for PocketScan's on-device ReceiptParser (JS port).",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "check": "node test/samples.check.mjs && node test/golden.check.mjs",
+    "serve": "node ../scripts/serve-demo.mjs"
+  },
+  "license": "MIT"
+}

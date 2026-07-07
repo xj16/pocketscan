@@ -1,0 +1,65 @@
+name: Deploy demo to GitHub Pages
+
+# Publishes the static, dependency-free ReceiptParser playground in demo/ to
+# GitHub Pages so the parser is interactive at
+#   https://xj16.github.io/pocketscan/
+#
+# The bundle is fully self-contained (one HTML file + one JS file), so "build"
+# is just a parity check + copy. Nothing here needs the Android/iOS toolchains.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "demo/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify parser parity before publishing
+        working-directory: demo
+        run: npm test
+
+      - name: Assemble static site
+        run: |
+          mkdir -p _site
+          cp demo/index.html _site/index.html
+          mkdir -p _site/js
+          cp demo/js/receipt-parser.js _site/js/receipt-parser.js
+          # A .nojekyll file stops GitHub Pages from touching our assets.
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

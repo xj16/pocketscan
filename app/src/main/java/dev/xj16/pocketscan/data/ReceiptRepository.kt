@@ -13,7 +13,19 @@ class ReceiptRepository(private val dao: ReceiptDao) {
 
     val count: Flow<Int> = dao.observeCount()
 
+    /** Per-currency running totals (honest for mixed-currency ledgers). */
+    val currencyTotals: Flow<List<CurrencyTotal>> = dao.observeCurrencyTotals()
+
+    /** Spend rolled up by category — drives the breakdown chart. */
+    val categoryTotals: Flow<List<CategoryTotal>> = dao.observeCategoryTotals()
+
+    /** Searchable, category-filterable ledger stream. */
+    fun search(query: String, category: String?): Flow<List<ReceiptEntity>> =
+        dao.search(query, category)
+
     fun totalMinor(currency: String): Flow<Long> = dao.observeTotalMinor(currency)
+
+    fun observe(id: Long): Flow<ReceiptEntity?> = dao.observeById(id)
 
     suspend fun get(id: Long): ReceiptEntity? = dao.findById(id)
 
@@ -22,4 +34,6 @@ class ReceiptRepository(private val dao: ReceiptDao) {
     suspend fun update(receipt: ReceiptEntity) = dao.update(receipt)
 
     suspend fun remove(receipt: ReceiptEntity) = dao.delete(receipt)
+
+    suspend fun removeById(id: Long) = dao.deleteById(id)
 }

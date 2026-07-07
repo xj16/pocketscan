@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    jacoco
 }
 
 // Export Room schemas into the repo so migrations can be diffed in review.
@@ -18,8 +19,8 @@ android {
         applicationId = "dev.xj16.pocketscan"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -35,6 +36,9 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            // Emit JaCoCo execution data for the JVM unit tests so
+            // `jacocoTestReport` has coverage to report on.
+            enableUnitTestCoverage = true
         }
     }
 
@@ -116,9 +120,51 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
     testImplementation(libs.androidx.core.testing)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
 
     // --- Instrumented tests ---
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
+}
+
+// --- Coverage ---------------------------------------------------------------
+// A JaCoCo report over the JVM/Robolectric unit tests. Focuses on the logic
+// layers that carry the app's correctness (parser, CSV, ViewModels, data,
+// vision geometry) and excludes generated code and pure Compose UI, which is
+// covered by manual/instrumented testing instead.
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+    group = "verification"
+    description = "Generates a JaCoCo coverage report from the debug unit tests."
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val excludes = listOf(
+        "**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*",
+        "**/*Test*.*", "android/**/*.*",
+        // Generated Room + Compose scaffolding and pure-UI screens.
+        "**/*_Impl*.*", "**/*Kt$*.*",
+        "**/dev/xj16/pocketscan/ui/screen/**",
+        "**/dev/xj16/pocketscan/ui/theme/**",
+        "**/*ComposableSingletons*.*",
+    )
+
+    val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        setExcludes(excludes)
+    }
+    classDirectories.setFrom(debugTree)
+    sourceDirectories.setFrom(files("src/main/java"))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory.get()) {
+            setIncludes(listOf("**/testDebugUnitTest.exec", "**/*.ec"))
+        },
+    )
 }

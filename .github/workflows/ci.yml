@@ -33,8 +33,8 @@ jobs:
       - name: Grant execute permission to gradlew
         run: chmod +x ./gradlew
 
-      - name: Run unit tests (ReceiptParser, Quad, …)
-        run: ./gradlew testDebugUnitTest --stacktrace
+      - name: Run unit tests + coverage (ReceiptParser, DAO, ViewModel, …)
+        run: ./gradlew jacocoTestReport --stacktrace
 
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
@@ -48,6 +48,13 @@ jobs:
         with:
           name: pocketscan-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketscan-coverage
+          path: app/build/reports/jacoco/jacocoTestReport
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
@@ -98,3 +105,22 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             clean build test \
             CODE_SIGNING_ALLOWED=NO
+
+  # ---------------------------------------------------------------------------
+  # Browser demo: the JS port of ReceiptParser must stay behaviorally identical
+  # to the Kotlin/Swift parsers. These re-run the JVM/XCTest fixtures in Node.
+  # ---------------------------------------------------------------------------
+  demo:
+    name: Parser playground (JS parity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run JS parser parity tests
+        working-directory: demo
+        run: npm test

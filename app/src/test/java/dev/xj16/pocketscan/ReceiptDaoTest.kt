@@ -49,7 +49,7 @@ class ReceiptDaoTest {
     @Before
     fun setUp() {
         db = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
+            ApplicationProvider.getApplicationContext<android.content.Context>(),
             LedgerDatabase::class.java,
         ).allowMainThreadQueries().build()
         dao = db.receiptDao()

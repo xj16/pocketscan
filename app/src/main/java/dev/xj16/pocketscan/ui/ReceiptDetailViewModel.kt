@@ -23,7 +23,6 @@ class ReceiptDetailViewModel(
 
     val receipt: StateFlow<ReceiptEntity?> =
         repo.observe(receiptId)
-            .map { it }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5_000),

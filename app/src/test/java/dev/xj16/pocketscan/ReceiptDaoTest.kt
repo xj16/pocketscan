@@ -69,7 +69,7 @@ class ReceiptDaoTest {
         val id = dao.insert(receipt("Whole Foods", 1058, "USD", "Groceries"))
         val found = dao.findById(id)
         assertEquals("Whole Foods", found?.merchant)
-        assertEquals(1058, found?.totalMinor)
+        assertEquals(1058L, found?.totalMinor)
         assertEquals("USD", found?.currency)
     }
 

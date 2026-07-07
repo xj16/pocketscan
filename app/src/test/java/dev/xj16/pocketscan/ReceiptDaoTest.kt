@@ -6,7 +6,7 @@ import dev.xj16.pocketscan.data.LedgerDatabase
 import dev.xj16.pocketscan.data.ReceiptDao
 import dev.xj16.pocketscan.data.ReceiptEntity
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -59,7 +59,7 @@ class ReceiptDaoTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `insert then findById returns the stored receipt`() = runTest {
+    fun `insert then findById returns the stored receipt`() = runBlocking {
         val id = dao.insert(receipt("Whole Foods", 1058, "USD", "Groceries"))
         val found = dao.findById(id)
         assertEquals("Whole Foods", found?.merchant)
@@ -68,7 +68,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `observeAll returns newest first`() = runTest {
+    fun `observeAll returns newest first`() = runBlocking {
         dao.insert(receipt("Older", 100, "USD", createdAt = 1_000))
         dao.insert(receipt("Newer", 200, "USD", createdAt = 2_000))
         val all = dao.observeAll().first()
@@ -76,7 +76,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `search matches merchant and raw OCR text, case-insensitively`() = runTest {
+    fun `search matches merchant and raw OCR text, case-insensitively`() = runBlocking {
         dao.insert(receipt("BIM Market", 8980, "TRY", rawText = "ekmek sut"))
         dao.insert(receipt("Shell", 5000, "USD", rawText = "fuel petrol"))
 
@@ -88,7 +88,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `search honors the category filter`() = runTest {
+    fun `search honors the category filter`() = runBlocking {
         dao.insert(receipt("A", 100, "USD", category = "Groceries"))
         dao.insert(receipt("B", 200, "USD", category = "Transport"))
         assertEquals(1, dao.search("", "Transport").first().size)
@@ -96,7 +96,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `currency totals group by ISO code, not summed together`() = runTest {
+    fun `currency totals group by ISO code, not summed together`() = runBlocking {
         dao.insert(receipt("US1", 1058, "USD"))
         dao.insert(receipt("US2", 5000, "USD"))
         dao.insert(receipt("TR1", 8980, "TRY"))
@@ -107,7 +107,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `category totals roll up by category and currency`() = runTest {
+    fun `category totals roll up by category and currency`() = runBlocking {
         dao.insert(receipt("A", 1000, "USD", category = "Groceries"))
         dao.insert(receipt("B", 500, "USD", category = "Groceries"))
         dao.insert(receipt("C", 300, "USD", category = "Dining"))
@@ -119,7 +119,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `deleteById removes only the targeted receipt`() = runTest {
+    fun `deleteById removes only the targeted receipt`() = runBlocking {
         val keep = dao.insert(receipt("Keep", 100, "USD"))
         val drop = dao.insert(receipt("Drop", 200, "USD"))
         dao.deleteById(drop)
@@ -130,7 +130,7 @@ class ReceiptDaoTest {
     }
 
     @Test
-    fun `observeById reflects updates and deletes`() = runTest {
+    fun `observeById reflects updates and deletes`() = runBlocking {
         val id = dao.insert(receipt("Original", 100, "USD"))
         assertEquals("Original", dao.observeById(id).first()?.merchant)
 

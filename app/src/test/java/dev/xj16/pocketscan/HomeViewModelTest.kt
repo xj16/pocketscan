@@ -2,13 +2,12 @@ package dev.xj16.pocketscan
 
 import dev.xj16.pocketscan.data.ReceiptEntity
 import dev.xj16.pocketscan.data.ReceiptRepository
-import dev.xj16.pocketscan.ui.HomeUiState
 import dev.xj16.pocketscan.ui.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -25,14 +24,14 @@ import org.junit.Test
  * total fix (per-currency grouping), the searchable/filterable ledger, and the
  * spending-by-category breakdown that feeds the chart. No Android, no Room.
  *
- * Each test keeps a live collector on `state` (via [backgroundScope]) so the
- * `WhileSubscribed`-sharing StateFlow is active, then drains the debounce and
- * upstream flows with [advanceUntilIdle] before asserting on the latest value.
+ * An UnconfinedTestDispatcher runs coroutines eagerly; each test keeps `state`
+ * collected (so the WhileSubscribed StateFlow is warm), drains the debounce with
+ * advanceUntilIdle, then reads the current value.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
-    private val dispatcher = StandardTestDispatcher()
+    private val dispatcher = UnconfinedTestDispatcher()
 
     private fun receipt(
         id: Long,
@@ -72,52 +71,58 @@ class HomeViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    /** Keeps `state` collected in the background and returns the settled value. */
-    private suspend fun kotlinx.coroutines.test.TestScope.settled(): HomeUiState {
-        val seen = mutableListOf<HomeUiState>()
-        vm.state.onEach { seen.add(it) }.launchIn(backgroundScope)
-        advanceUntilIdle()
-        return seen.last()
-    }
-
     @Test
     fun `groups totals per currency instead of summing unlike currencies`() = runTest(dispatcher) {
-        val s = settled()
+        val job = keepWarm()
+        advanceUntilIdle()
+        val s = vm.state.value
         val byCode = s.currencyTotals.associate { it.currency to it.totalMinor }
         assertEquals(6058L, byCode["USD"]) // 1058 + 5000, NOT mixed with TRY/EUR
         assertEquals(8980L, byCode["TRY"])
         assertEquals(935L, byCode["EUR"])
         assertEquals(3, s.currencyTotals.size)
+        job.cancel()
     }
 
     @Test
     fun `search narrows the ledger by merchant`() = runTest(dispatcher) {
+        val job = keepWarm()
         vm.onQueryChange("shell")
-        val s = settled()
+        advanceUntilIdle()
+        val s = vm.state.value
         assertEquals(1, s.receipts.size)
         assertEquals("Shell", s.receipts.first().merchant)
         assertTrue(s.isFiltering)
+        job.cancel()
     }
 
     @Test
     fun `raw-text search matches OCR content not just merchant`() = runTest(dispatcher) {
+        val job = keepWarm()
         vm.onQueryChange("espresso")
-        val s = settled()
+        advanceUntilIdle()
+        val s = vm.state.value
         assertEquals(1, s.receipts.size)
         assertEquals("Cafe de Flore", s.receipts.first().merchant)
+        job.cancel()
     }
 
     @Test
     fun `category filter restricts to the chosen category`() = runTest(dispatcher) {
+        val job = keepWarm()
         vm.onCategorySelected("Groceries")
-        val s = settled()
+        advanceUntilIdle()
+        val s = vm.state.value
         assertEquals(2, s.receipts.size)
         assertTrue(s.receipts.all { it.category == "Groceries" })
+        job.cancel()
     }
 
     @Test
     fun `category slices are computed from the dominant currency`() = runTest(dispatcher) {
-        val s = settled()
+        val job = keepWarm()
+        advanceUntilIdle()
+        val s = vm.state.value
         // USD is dominant (6058 minor). Slices should sum to ~1.0 and be USD.
         assertEquals("USD", s.chartCurrency)
         assertNotNull(s.categorySlices.firstOrNull())
@@ -125,6 +130,7 @@ class HomeViewModelTest {
         assertEquals(1.0, sum, 0.001)
         // Transport (5000) should outrank Groceries (1058) within USD.
         assertEquals("Transport", s.categorySlices.first().category)
+        job.cancel()
     }
 
     @Test
@@ -134,4 +140,8 @@ class HomeViewModelTest {
         vm.onCategorySelected("Dining")
         assertEquals(null, vm.category.value)
     }
+
+    /** Keeps a subscriber on `state` so the WhileSubscribed StateFlow stays active. */
+    private fun kotlinx.coroutines.test.TestScope.keepWarm(): Job =
+        launch { vm.state.collect { /* keep active */ } }
 }

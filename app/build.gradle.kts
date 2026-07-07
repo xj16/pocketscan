@@ -119,6 +119,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.mockito.kotlin)
     testImplementation(libs.androidx.core.testing)
+    testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
 
     // --- Instrumented tests ---

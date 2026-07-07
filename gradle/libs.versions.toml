@@ -18,6 +18,7 @@ coroutines = "1.8.1"
 accompanistPermissions = "0.34.0"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
+androidxTestCore = "1.6.1"
 espresso = "3.6.1"
 mockitoKotlin = "5.4.0"
 robolectric = "4.13"
@@ -56,6 +57,7 @@ accompanist-permissions = { group = "com.google.accompanist", name = "accompanis
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockitoKotlin" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
